@@ -32,7 +32,7 @@ Item-kNN rating metrics were not computed. The Hybrid wins on NDCG and MRR while
 
 GlobalMean and UserMean give identical rankings because a user-specific constant does not change the order of candidates (their tie rate is 100%). Item-kNN has tied scores in about 20% of test cases, Bias in about 1%, and MF essentially never (`docs/tables/tie_rate_test_table.csv`). ItemMean is below random: ranking by raw item mean rating prefers items with few, very high ratings, which are rarely the held-out item. I did not test this explanation directly.
 
-The Hybrid weight was selected by NDCG@10 on a random sample of 500 validation users (MF k=64 and Item-kNN K=50 fixed). The sweep is saved in `docs/tables/hybrid_alpha_sweep.csv` and plotted in `docs/figures/hybrid_alpha_sweep.png`. Validation NDCG@10 was 0.133 for pure MF (alpha=1), 0.248 for pure Item-kNN (alpha=0) and 0.271 for alpha=0.25, so the blend is better than either component on this sample.
+The Hybrid weight was selected by NDCG@10 on a random sample of 500 validation users (MF k=64 and Item-kNN K=50 fixed). The sweep is saved in `docs/tables/hybrid_alpha_sweep.csv`. Validation NDCG@10 was 0.133 for pure MF (alpha=1), 0.248 for pure Item-kNN (alpha=0) and 0.271 for alpha=0.25, so the blend is better than either component on this sample.
 
 ### Sensitivity to filtering thresholds
 

@@ -1,0 +1,3 @@
+model,median_rank,p90_rank,pct_rank_le_10
+Bias(μ+bu+bi),30.0,84.0,32.094142818935545
+"MF(Biased SGD, k=64)",32.0,83.0,25.508157261299814
