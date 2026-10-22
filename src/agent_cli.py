@@ -1,10 +1,10 @@
 """agent_cli.py
 
-Agent za preporuke: trenira Bias / MF / Item-kNN / Hybrid, bira najbolji model po
-TEST NDCG@10, snima artefakte i generise Top-N preporuke sa objasnjenjima.
+Recommendation agent: trains Bias / MF / Item-kNN / Hybrid, picks the best model by
+TEST NDCG@10, saves the artifacts and generates Top-N recommendations with explanations.
 
-Sva zajednicka logika (učitavanje podataka, filtriranje, split, modeli, evaluacija)
-zivi u dataprep.py, models.py i evaluation.py. Ovde je samo ono što je specificno za agenta.
+All shared logic (data loading, filtering, split, models, evaluation) lives in
+dataprep.py, models.py and evaluation.py. This file only contains what is specific to the agent.
 """
 
 from __future__ import annotations
@@ -60,12 +60,10 @@ REVIEWER_IDS_FILE = ART_DIR / "reviewer_ids.txt"
 ITEM_IDS_FILE = ART_DIR / "item_ids.txt"
 
 
-# =========================
-# 1) Skoring po modelu: score_fn(user_index, candidates) -> np.ndarray
-# =========================
+# Scoring per model: score_fn(user_index, candidates) -> np.ndarray
 
 def _bias_scores(u_idx: int, cand: np.ndarray, payload: Payload) -> np.ndarray:
-    """mu + bu[u] + bi[cand], ogranicen na [1, 5]."""
+    """mu + bu[u] + bi[cand], clipped to [1, 5]."""
     raw = float(payload["mu"]) + float(payload["bu"][u_idx]) + payload["bi"][cand]
     return np.clip(raw, RATING_MIN, RATING_MAX).astype(float)
 
@@ -77,7 +75,7 @@ def _mf_scores(u_idx: int, cand: np.ndarray, payload: Payload) -> np.ndarray:
 
 
 def _knn_scores(u_idx: int, cand: np.ndarray, payload: Payload) -> np.ndarray:
-    """Item-kNN, uz Bias fallback (mu + bu + bi) kada korisnik nema ocenjenih suseda."""
+    """Item-kNN, with the Bias fallback (mu + bu + bi) when the user has no rated neighbors."""
     fallback = _bias_scores(u_idx, cand, payload)
     out = np.empty(len(cand), dtype=float)
     for t, item in enumerate(cand):
@@ -89,7 +87,7 @@ def _knn_scores(u_idx: int, cand: np.ndarray, payload: Payload) -> np.ndarray:
 
 
 def _hybrid_scores(u_idx: int, cand: np.ndarray, payload: Payload) -> np.ndarray:
-    """alpha * MF + (1 - alpha) * Item-kNN. alpha=1 je čist MF, alpha=0 čist Item-kNN."""
+    """alpha * MF + (1 - alpha) * Item-kNN. alpha=1 is pure MF, alpha=0 is pure Item-kNN."""
     alpha = float(np.clip(payload.get("hybrid_alpha", 0.5), 0.0, 1.0))
     return alpha * _mf_scores(u_idx, cand, payload) + (1.0 - alpha) * _knn_scores(u_idx, cand, payload)
 
@@ -103,24 +101,22 @@ _SCORERS: dict[str, Callable[[int, np.ndarray, Payload], np.ndarray]] = {
 
 
 def make_score_fn(model_name: str, payload: Payload) -> ScoreFn:
-    """Vraca score_fn(u_idx, candidates) -> np.ndarray za dati model.
+    """Return score_fn(u_idx, candidates) -> np.ndarray for the given model.
 
-    Koristi se i u evaluaciji (evaluate_ranking) i pri generisanju preporuka.
+    Used both in the evaluation (evaluate_ranking) and when generating recommendations.
     """
     if model_name not in _SCORERS:
-        raise ValueError(f"Nepoznat model: {model_name}. Dozvoljeno: {MODEL_NAMES}")
+        raise ValueError(f"Unknown model: {model_name}. Allowed: {MODEL_NAMES}")
     scorer = _SCORERS[model_name]
     return lambda u, cand: scorer(int(u), np.asarray(cand, dtype=int), payload)
 
 
-# =========================
-# 2) Objasnjenja preporuka
-# =========================
+# Recommendation explanations
 
 def explain_item_knn(u_idx: int, i_idx: int, payload: Payload, top_m: int = 3) -> list[str]:
     user_hist = payload["user_hist"]
     if u_idx not in user_hist:
-        return ["Nemamo istoriju ocena za ovog korisnika, pa je preporuka zasnovana na opštem modelu (fallback)."]
+        return ["We have no rating history for this user, so the recommendation is based on the general model (fallback)."]
 
     rated = user_hist[u_idx]
     u_mean = float(payload["user_mean"][u_idx])
@@ -132,18 +128,18 @@ def explain_item_knn(u_idx: int, i_idx: int, payload: Payload, top_m: int = 3) -
         if not np.isfinite(sim) or sim == 0.0 or int(j) not in rated:
             continue
         weight = abs(sim * (rated[int(j)] - u_mean))
-        contribs.append((weight, f"Zato što ste visoko ocenili '{item_ids[int(j)]}' (sličnost={sim:.3f})."))
+        contribs.append((weight, f"Because you rated '{item_ids[int(j)]}' highly (similarity={sim:.3f})."))
 
     contribs.sort(key=lambda x: x[0], reverse=True)
     msgs = [m for _, m in contribs[:top_m]]
     return msgs or [
-        "Preporuka je zasnovana na sličnim proizvodima, ali nismo našli direktne slične stavke "
-        "iz vaše istorije (fallback na opšti signal)."
+        "The recommendation is based on similar products, but we found no directly similar items "
+        "in your history (fallback to the general signal)."
     ]
 
 
 def _explain_for_model(model_name: str, u_idx: int, i_idx: int, payload: Payload) -> list[str]:
-    """Lista objasnjenja zašto je item preporucen, prilagodjena modelu."""
+    """List of explanations of why the item was recommended, adapted to the model."""
     if model_name == "Item-kNN":
         return explain_item_knn(u_idx, i_idx, payload)
 
@@ -156,20 +152,20 @@ def _explain_for_model(model_name: str, u_idx: int, i_idx: int, payload: Payload
     if model_name == "MF":
         pred = float(mf["mu"]) + float(mf["bu"][u_idx]) + float(mf["bi"][i_idx]) + dot
         return [
-            f"MF (Matrix Factorization): predviđena ocena = mu + bu + bi + P_u.Q_i = "
+            f"MF (Matrix Factorization): predicted rating = mu + bu + bi + P_u.Q_i = "
             f"{mu_v:.3f} + {bu_v:+.3f} + {bi_v:+.3f} + {dot:+.3f} ~ {pred:.3f}.",
-            f"Doprinos latentnih faktora P_u.Q_i = {dot:+.3f} (pozitivno = vaš profil leži u istom pravcu kao item).",
-            f"Item bias bi = {bi_v:+.3f} (koliko ovaj item generalno odstupa od globalnog proseka).",
+            f"Latent factor contribution P_u.Q_i = {dot:+.3f} (positive = your profile points in the same direction as the item).",
+            f"Item bias bi = {bi_v:+.3f} (how much this item deviates from the global mean in general).",
         ]
 
     if model_name == "Bias":
         pred = mu_v + bu_v + bi_v
         return [
-            f"Bias model: predikcija = mu + bu + bi = {mu_v:.3f} + {bu_v:+.3f} + {bi_v:+.3f} ~ {pred:.3f}.",
-            f"Item bias bi = {bi_v:+.3f} (pozitivno = generalno ocenjen iznad globalnog proseka).",
-            f"Vaš user bias bu = {bu_v:+.3f} (vaša tendencija da ocenjujete iznad ili ispod mu).",
-            "Napomena: Bias model nije personalizovan po sadržaju, rangira sve korisnike po istim "
-            "globalno najboljim itemima.",
+            f"Bias model: prediction = mu + bu + bi = {mu_v:.3f} + {bu_v:+.3f} + {bi_v:+.3f} ~ {pred:.3f}.",
+            f"Item bias bi = {bi_v:+.3f} (positive = generally rated above the global mean).",
+            f"Your user bias bu = {bu_v:+.3f} (your tendency to rate above or below mu).",
+            "Note: the Bias model is not personalized by content, it ranks all users by the same "
+            "globally best items.",
         ]
 
     if model_name == "Hybrid":
@@ -180,27 +176,25 @@ def _explain_for_model(model_name: str, u_idx: int, i_idx: int, payload: Payload
         blend = alpha * mf_pred + (1.0 - alpha) * knn_pred
         return [
             f"Hybrid model: alpha={alpha:.2f} * MF + (1 - alpha) * Item-kNN.",
-            f"  MF predikcija = {mf_pred:.3f} (latentni faktori P_u.Q_i = {dot:+.3f}).",
-            f"  Item-kNN predikcija = {knn_pred:.3f} (sused-based ili bias fallback).",
-            f"  Kombinovana predikcija = {alpha:.2f}*{mf_pred:.3f} + {1.0 - alpha:.2f}*{knn_pred:.3f} ~ {blend:.3f}.",
+            f"  MF prediction = {mf_pred:.3f} (latent factors P_u.Q_i = {dot:+.3f}).",
+            f"  Item-kNN prediction = {knn_pred:.3f} (neighbor-based or bias fallback).",
+            f"  Combined prediction = {alpha:.2f}*{mf_pred:.3f} + {1.0 - alpha:.2f}*{knn_pred:.3f} ~ {blend:.3f}.",
         ]
 
-    return ["Preporuka je generisana izabranim modelom."]
+    return ["The recommendation was generated by the selected model."]
 
 
 _MODEL_BANNERS = {
-    "Item-kNN": "Korisnik pronađen: Item-kNN (Adjusted Cosine) sa bias fallback-om.",
-    "MF": "Korisnik pronađen: Matrix Factorization (Biased SGD), predikcija iz latentnih faktora P_u i Q_i.",
-    "Bias": "Korisnik pronađen: Bias model (mu + bu + bi). Napomena: rangira sve korisnike po istim globalno najboljim itemima.",
+    "Item-kNN": "User found: Item-kNN (Adjusted Cosine) with a bias fallback.",
+    "MF": "User found: Matrix Factorization (Biased SGD), prediction from the latent factors P_u and Q_i.",
+    "Bias": "User found: Bias model (mu + bu + bi). Note: it ranks all users by the same globally best items.",
 }
 
 
-# =========================
-# 3) Top-N preporuke za korisnika
-# =========================
+# Top-N recommendations for a user
 
 def ensure_lookups(payload: Payload) -> Payload:
-    """Dodaje brzu mapu user_id -> user_index (i za stare pickle fajlove)."""
+    """Add a fast user_id -> user_index map (also for old pickle files)."""
     if "user_id_to_index" not in payload:
         ids = payload["idx_maps"]["user_index_to_id"]
         payload["user_id_to_index"] = {uid: idx for idx, uid in enumerate(ids)}
@@ -213,7 +207,7 @@ def recommend_top_n_for_user(
     model_name: Optional[str] = None,
     top_n: int = 10,
 ) -> dict[str, object]:
-    """Top-N preporuke za korisnika zadatim (ili najboljim) modelom; nepoznat korisnik dobija cold-start."""
+    """Top-N recommendations for a user with the given (or the best) model; an unknown user gets the cold-start flow."""
     ensure_lookups(payload)
     model_name = model_name or str(payload.get("best_model", DEFAULT_MODEL))
     item_ids = payload["idx_maps"]["item_index_to_id"]
@@ -231,7 +225,7 @@ def recommend_top_n_for_user(
             candidates = candidates[mask]
         scores = make_score_fn(model_name, payload)(u_idx, candidates)
     else:
-        # Cold-start: nema user-specificnog signala, koristimo mu + item bias.
+        # Cold-start: there is no user-specific signal, so use mu + item bias.
         raw = float(payload["mu"]) + payload["bi"][candidates]
         scores = np.clip(raw, RATING_MIN, RATING_MAX).astype(float)
 
@@ -241,15 +235,15 @@ def recommend_top_n_for_user(
         for o in order
     ]
 
-    explanation = [f"Korišćen model: {model_name}"]
+    explanation = [f"Model used: {model_name}"]
     if not known_user:
         explanation.append(
-            "Korisnik nije pronađen u datasetu, cold-start: preporuke su zasnovane na opštem signalu (mu + item bias)."
+            "User not found in the dataset, cold-start: recommendations are based on the general signal (mu + item bias)."
         )
     elif model_name == "Hybrid":
         a = float(payload.get("hybrid_alpha", 0.5))
         explanation.append(
-            f"Korisnik pronađen: Hybrid (alpha={a:.2f}*MF + (1-alpha)*Item-kNN), kombinovani globalni i lokalni signal."
+            f"User found: Hybrid (alpha={a:.2f}*MF + (1-alpha)*Item-kNN), a combination of global and local signal."
         )
     elif model_name in _MODEL_BANNERS:
         explanation.append(_MODEL_BANNERS[model_name])
@@ -261,7 +255,7 @@ def recommend_top_n_for_user(
         }
     else:
         item_explanations = {
-            r["asin"]: ["Preporuka je izabrana na osnovu opšte popularnosti i ocena (cold-start fallback)."]
+            r["asin"]: ["The recommendation was chosen from general popularity and ratings (cold-start fallback)."]
             for r in results[:n_explain]
         }
 
@@ -275,9 +269,7 @@ def recommend_top_n_for_user(
     }
 
 
-# =========================
-# 4) Evaluacija modela (Top-N ranking)
-# =========================
+# Model evaluation (Top-N ranking)
 
 def tune_hybrid_alpha(
     payload: Payload,
@@ -289,12 +281,12 @@ def tune_hybrid_alpha(
     k: int = 10,
     seed: int = 42,
 ) -> tuple[pd.DataFrame, float]:
-    """Bira alpha na validaciji, uz zajednicke negative za sve alpha vrednosti.
+    """Pick alpha on the validation split, with shared negatives for all alpha values.
 
-    1) Uzme uzorak validacionih parova (user, pozitivan item).
-    2) Za svakog korisnika jednom izvuce 99 negativa i izračuna MF i Item-kNN skorove za 100 kandidata.
-    3) Za svaku alpha samo meša vec izračunate skorove, pa cela pretraga košta
-       otprilike kao jedan Item-kNN prolaz.
+    1) Take a sample of validation pairs (user, positive item).
+    2) For each user, draw 99 negatives once and compute the MF and Item-kNN scores of the 100 candidates.
+    3) For each alpha, only blend the already computed scores, so the whole search costs
+       roughly as much as a single Item-kNN pass.
     """
     rng = np.random.default_rng(seed)
     df_val_s = df_val.sample(n=min(int(sample_users), len(df_val)), random_state=seed)
@@ -312,7 +304,7 @@ def tune_hybrid_alpha(
 
     rows = []
     for a in alphas:
-        rank_rng = np.random.default_rng(seed + 1000)  # isti tie-breaking za svaku alpha
+        rank_rng = np.random.default_rng(seed + 1000)  # same tie-breaking for every alpha
         ranks = [
             rank_of_positive_tie_aware(float(a) * mf_s + (1.0 - float(a)) * knn_s, 0, rank_rng)
             for mf_s, knn_s in cached
@@ -342,7 +334,7 @@ def evaluate_models(
     sample_users: int | None = None,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """HR@10 / NDCG@10 / MRR@10 za sve modele (1 pozitivan + 99 negativa po korisniku)."""
+    """HR@10 / NDCG@10 / MRR@10 for all models (1 positive + 99 negatives per user)."""
     val_pos = _sample_rows(df_val, sample_users, seed)[["user_index", "item_index"]]
     test_pos = _sample_rows(df_test, sample_users, seed + 1)[["user_index", "item_index"]]
     user_interactions = build_user_interactions(payload["df_cut"])
@@ -362,13 +354,13 @@ def evaluate_models(
 
 
 def print_model_comparison(payload: Payload) -> None:
-    """Ispis tabele metrika, izabranog modela i alpha pretrage."""
+    """Print the metrics table, the selected model and the alpha search."""
     metrics = payload.get("metrics")
     print("\n" + "=" * 80)
-    print("Poređenje modela (Top-N ranking metrike, uzorak validacionih i test korisnika)")
+    print("Model comparison (Top-N ranking metrics, sample of validation and test users)")
     print("=" * 80)
     if metrics is None or len(metrics) == 0:
-        print("(Metrike nisu dostupne. Pokrenite ponovo sa --retrain.)")
+        print("(Metrics are not available. Run again with --retrain.)")
         print("=" * 80)
         return
 
@@ -382,48 +374,46 @@ def print_model_comparison(payload: Payload) -> None:
     best = str(payload.get("best_model", ""))
     if best in set(metrics["model"].astype(str)):
         best_row = metrics[metrics["model"] == best].iloc[0]
-        print(f"Najbolji model po TEST_NDCG@10: {best} (TEST_NDCG@10={float(best_row['TEST_NDCG@10']):.4f})")
+        print(f"Best model by TEST_NDCG@10: {best} (TEST_NDCG@10={float(best_row['TEST_NDCG@10']):.4f})")
         print(
-            "Razlog izbora: NDCG@10 meri koliko su pozitivni itemi rangirani visoko među 99 nasumičnih "
-            "negativa, što je direktna metrika kvaliteta Top-N preporuka, za razliku od RMSE koji meri "
-            "tačnost predikcije ocene."
+            "Reason for the choice: NDCG@10 measures how high the positive items are ranked among 99 random "
+            "negatives, which is a direct metric of Top-N recommendation quality, unlike RMSE, which measures "
+            "the accuracy of the rating prediction."
         )
     print("=" * 80)
 
     alpha_sweep = payload.get("hybrid_alpha_sweep")
     chosen_alpha = payload.get("hybrid_alpha")
     if isinstance(alpha_sweep, pd.DataFrame) and len(alpha_sweep) > 0:
-        print("\nHybrid alpha tuning (val): alpha=1.0 je čist MF, alpha=0.0 je čist Item-kNN")
+        print("\nHybrid alpha tuning (val): alpha=1.0 is pure MF, alpha=0.0 is pure Item-kNN")
         df_a = alpha_sweep.copy()
         for c in df_a.columns:
             df_a[c] = df_a[c].map(lambda x, c=c: f"{float(x):.2f}" if c == "alpha" else f"{float(x):.4f}")
         print(df_a.to_string(index=False))
         if chosen_alpha is not None:
-            print(f"Izabrana alpha za Hybrid = {float(chosen_alpha):.2f} (max VAL_NDCG@10).")
+            print(f"Selected alpha for Hybrid = {float(chosen_alpha):.2f} (max VAL_NDCG@10).")
         print("=" * 80)
 
 
-# =========================
-# 5) Artefakti: save / load
-# =========================
+# Artifacts: save / load
 
 def dump_reviewer_ids(payload: Payload) -> None:
-    """Snima sve reviewerID i ASIN iz filtriranog dataseta u tekstualne fajlove."""
+    """Save all reviewerIDs and ASINs of the filtered dataset to text files."""
     ART_DIR.mkdir(parents=True, exist_ok=True)
     for path, key, label in (
-        (REVIEWER_IDS_FILE, "user_index_to_id", "reviewerID-eva"),
-        (ITEM_IDS_FILE, "item_index_to_id", "item ASIN-ova"),
+        (REVIEWER_IDS_FILE, "user_index_to_id", "reviewerIDs"),
+        (ITEM_IDS_FILE, "item_index_to_id", "item ASINs"),
     ):
         ids = list(payload["idx_maps"][key])
         path.write_text("".join(f"{x}\n" for x in ids), encoding="utf-8")
-        print(f"[Saved] {len(ids)} {label} u {path}")
+        print(f"[Saved] {len(ids)} {label} to {path}")
 
 
 def save_artifacts(payload: Payload) -> None:
     ART_DIR.mkdir(parents=True, exist_ok=True)
     with open(ART_FILE, "wb") as f:
         pickle.dump(payload, f)
-    print(f"[Saved] Artefakti snimljeni u: {ART_FILE}")
+    print(f"[Saved] Artifacts saved to: {ART_FILE}")
     dump_reviewer_ids(payload)
 
 
@@ -434,32 +424,30 @@ def load_artifacts() -> Optional[Payload]:
         with open(ART_FILE, "rb") as f:
             payload = pickle.load(f)
     except Exception as exc:
-        print(f"[Warn] Neuspešno učitavanje artefakata ({exc}). Radi se retrain.")
+        print(f"[Warn] Failed to load the artifacts ({exc}). Retraining.")
         return None
-    print(f"[Loaded] Artefakti učitani iz: {ART_FILE}")
-    if not REVIEWER_IDS_FILE.exists():  # backfill za stari pickle
+    print(f"[Loaded] Artifacts loaded from: {ART_FILE}")
+    if not REVIEWER_IDS_FILE.exists():  # backfill for an old pickle
         try:
             dump_reviewer_ids(payload)
         except OSError as exc:
-            print(f"[Warn] Nije uspeo dump reviewerID-eva: {exc}")
+            print(f"[Warn] Dumping the reviewerIDs failed: {exc}")
     return payload
 
 
-# =========================
-# 6) Trening
-# =========================
+# Training
 
 def prepare_agent_model(
     min_user: int = MIN_USER_INTERACTIONS,
     min_item: int = MIN_ITEM_INTERACTIONS,
     top_k: int = 50,
-    mf_factors: int = 32,
+    mf_factors: int = 64,
     mf_epochs: int = 20,
     mf_lr: float = 0.02,
     mf_reg: float = 0.02,
     eval_sample_users: int | None = None,
 ) -> Payload:
-    """Trenira Bias / MF / Item-kNN, bira Hybrid alpha, evaluira i bira najbolji model."""
+    """Train Bias / MF / Item-kNN, pick the Hybrid alpha, evaluate and pick the best model."""
     df = map_and_clean(load_raw_reviews()).sort_values("timestamp", ascending=True)
     df_cut = iterative_filter_min_interactions(
         df, min_user_interactions=min_user, min_item_interactions=min_item, max_iters=20,
@@ -500,27 +488,25 @@ def prepare_agent_model(
         "mf_factors": mf_factors, "mf_epochs": mf_epochs,
     }
 
-    print(f"[Tune] Hybrid alpha na validaciji (grid={list(ALPHA_GRID)})...")
+    print(f"[Tune] Hybrid alpha on validation (grid={list(ALPHA_GRID)})...")
     alpha_table, best_alpha = tune_hybrid_alpha(payload, df_val, n_items=n_items, sample_users=500, seed=42)
     payload["hybrid_alpha"] = best_alpha
     payload["hybrid_alpha_sweep"] = alpha_table
     print(alpha_table.to_string(index=False))
-    print(f"[Tune] Izabrana alpha (Hybrid) = {best_alpha:.2f} (po VAL_NDCG@10).")
+    print(f"[Tune] Selected alpha (Hybrid) = {best_alpha:.2f} (by VAL_NDCG@10).")
 
-    n_eval = "svim" if eval_sample_users is None else f"~{eval_sample_users}"
-    print(f"[Eval] Poređenje modela na {n_eval} val/test korisnika (HR@10, NDCG@10, MRR@10)...")
+    n_eval = "all" if eval_sample_users is None else f"~{eval_sample_users}"
+    print(f"[Eval] Comparing models on {n_eval} val/test users (HR@10, NDCG@10, MRR@10)...")
     metrics = evaluate_models(payload, df_val, df_test, n_items=n_items, sample_users=eval_sample_users, seed=42)
     payload["metrics"] = metrics
 
     best_model = str(metrics.loc[int(metrics["TEST_NDCG@10"].astype(float).idxmax()), "model"])
     payload["best_model"] = best_model
-    print(f"[Eval] Najbolji model po TEST_NDCG@10: {best_model}")
+    print(f"[Eval] Best model by TEST_NDCG@10: {best_model}")
     return payload
 
 
-# =========================
-# 7) CLI
-# =========================
+# CLI
 
 def print_recommendation_block(resp: dict[str, object], top_n: int) -> None:
     print("\n" + "=" * 80)
@@ -531,10 +517,10 @@ def print_recommendation_block(resp: dict[str, object], top_n: int) -> None:
 
     results = resp["results"]
     if not results:
-        print("Nema preporuka za ovog korisnika.")
+        print("No recommendations for this user.")
         return
 
-    print(f"TOP-{min(top_n, len(results))} preporuka (po predviđenoj oceni):")
+    print(f"TOP-{min(top_n, len(results))} recommendations (by predicted rating):")
     for rank, r in enumerate(results[:top_n], start=1):
         print(f"{rank:02d}. ASIN={r['asin']} | predicted_rating={r['score']:.3f}")
         for ex in resp["item_explanations"].get(r["asin"], [])[:3]:
@@ -550,7 +536,7 @@ def run_single_recommendation(
 
 
 def run_demo(payload: Payload, top_n: int = 10, model_name: Optional[str] = None) -> None:
-    """Top-N za prvih nekoliko poznatih korisnika i jednog cold-start korisnika."""
+    """Top-N for the first few known users and one cold-start user."""
     sample_users = [str(u) for u in payload["idx_maps"]["user_index_to_id"][:4]] + ["NEW_USER_123"]
     for u in sample_users:
         run_single_recommendation(payload, user_id=u, top_n=top_n, model_name=model_name)
@@ -558,14 +544,14 @@ def run_demo(payload: Payload, top_n: int = 10, model_name: Optional[str] = None
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Amazon Recommender (Bias / MF / Item-kNN / Hybrid)")
-    parser.add_argument("--retrain", action="store_true", help="Ponovo istreniraj i snimi artefakte")
-    parser.add_argument("--demo", action="store_true", help="Top-N za nekoliko primernih korisnika")
-    parser.add_argument("--user", type=str, default=None, help="user_id (reviewerID) za preporuke")
-    parser.add_argument("--topn", type=int, default=10, help="Broj preporuka")
+    parser.add_argument("--retrain", action="store_true", help="Retrain and save the artifacts")
+    parser.add_argument("--demo", action="store_true", help="Top-N for a few example users")
+    parser.add_argument("--user", type=str, default=None, help="user_id (reviewerID) to recommend for")
+    parser.add_argument("--topn", type=int, default=10, help="Number of recommendations")
     parser.add_argument("--model", type=str, default=None, choices=list(MODEL_NAMES),
-                        help="Izbor modela (podrazumevano: najbolji po TEST_NDCG@10)")
+                        help="Model to use (default: best by TEST_NDCG@10)")
     parser.add_argument("--alpha", type=float, default=None,
-                        help="Hybrid težina alpha iz [0, 1] (podrazumevano: izabrana na validaciji)")
+                        help="Hybrid weight alpha in [0, 1] (default: selected on validation)")
     return parser
 
 
@@ -573,21 +559,21 @@ def main() -> None:
     args = build_arg_parser().parse_args()
 
     if args.topn <= 0:
-        raise ValueError("--topn mora biti pozitivan broj.")
+        raise ValueError("--topn must be a positive number.")
     if args.alpha is not None and not (0.0 <= args.alpha <= 1.0):
-        raise ValueError("--alpha mora biti u opsegu [0, 1].")
+        raise ValueError("--alpha must be in the range [0, 1].")
 
     payload = None if args.retrain else load_artifacts()
     if payload is None:
         raw_path = Path(resolve_raw_reviews_path())
         if not raw_path.exists():
-            raise FileNotFoundError(f"Dataset ne postoji: {raw_path}")
-        print("[Info] Pripremam agent model (može potrajati pri prvom pokretanju)...")
+            raise FileNotFoundError(f"Dataset does not exist: {raw_path}")
+        print("[Info] Preparing the agent model (this can take a while on the first run)...")
         payload = prepare_agent_model()
         save_artifacts(payload)
 
     if "metrics" not in payload or "best_model" not in payload:
-        print("[Warn] Učitani artefakti nemaju metrike. Pokrenite sa --retrain za novu evaluaciju.")
+        print("[Warn] The loaded artifacts have no metrics. Run with --retrain for a new evaluation.")
         payload.setdefault("best_model", DEFAULT_MODEL)
 
     if args.alpha is not None:
@@ -599,9 +585,9 @@ def main() -> None:
     best = payload.get("best_model")
     chosen_model = args.model or str(best or DEFAULT_MODEL)
     if args.model and args.model != best:
-        print(f"\n[Info] Override: koristim model '{chosen_model}' umesto best='{best}'.")
+        print(f"\n[Info] Override: using model '{chosen_model}' instead of best='{best}'.")
     else:
-        print(f"\n[Info] Aktivni model za preporuke: {chosen_model}")
+        print(f"\n[Info] Active model for recommendations: {chosen_model}")
 
     if args.demo:
         run_demo(payload, top_n=args.topn, model_name=chosen_model)
@@ -610,15 +596,15 @@ def main() -> None:
         run_single_recommendation(payload, user_id=args.user, top_n=args.topn, model_name=chosen_model)
         return
 
-    print("\nKomande:")
-    print("  - Unesi user_id (reviewerID) za Top-N preporuka.")
-    print("  - Prazan user_id ili 'exit' prekida.")
+    print("\nCommands:")
+    print("  - Enter a user_id (reviewerID) to get Top-N recommendations.")
+    print("  - An empty user_id or 'exit' quits.")
     while True:
-        u = input("\nUnesi user_id (ili 'exit'): ").strip()
+        u = input("\nEnter user_id (or 'exit'): ").strip()
         if not u or u.lower() in ("exit", "quit", "q"):
             break
         run_single_recommendation(payload, user_id=u, top_n=args.topn, model_name=chosen_model)
-    print("\nKraj.")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

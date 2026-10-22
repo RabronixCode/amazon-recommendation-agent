@@ -10,9 +10,9 @@ def plot_rating_distribution(rating_counts: pd.Series, out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     plt.figure(figsize=(8, 5))
     plt.bar(rating_counts.index.astype(str), rating_counts.values)
-    plt.title("Rating distribucija")
+    plt.title("Rating distribution")
     plt.xlabel("Rating")
-    plt.ylabel("Broj interakcija")
+    plt.ylabel("Number of interactions")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "plot_rating_distribution.png"), dpi=200)
     plt.close()
@@ -22,10 +22,10 @@ def plot_cdf(ux: np.ndarray, uy: np.ndarray, ix: np.ndarray, iy: np.ndarray, out
     plt.figure(figsize=(8, 5))
     plt.plot(ux, uy, label="User activity CDF")
     plt.plot(ix, iy, label="Item activity CDF")
-    plt.xscale("log")  # activity je obično heavy-tail
-    plt.title("User/Item activity distribucije (CDF)")
-    plt.xlabel("Broj interakcija (log skala)")
-    plt.ylabel("CDF (udeo entiteta sa <= x interakcija)")
+    plt.xscale("log")  # activity is usually heavy-tailed
+    plt.title("User/Item activity distributions (CDF)")
+    plt.xlabel("Number of interactions (log scale)")
+    plt.ylabel("CDF (share of entities with <= x interactions)")
     plt.grid(True, which="both", alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -36,9 +36,9 @@ def plot_interaction_timeline(timeline: pd.Series, out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     plt.figure(figsize=(10, 5))
     plt.plot(timeline.index, timeline.values)
-    plt.title("Interakcije kroz vreme (mesečno)")
-    plt.xlabel("Vreme")
-    plt.ylabel("Broj interakcija")
+    plt.title("Interactions over time (monthly)")
+    plt.xlabel("Time")
+    plt.ylabel("Number of interactions")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "plot_interactions_timeline_monthly.png"), dpi=200)
@@ -48,9 +48,9 @@ def plot_histogram_user_activity(hist_u: pd.Series, out_dir: str) -> None:
     os.makedirs(out_dir, exist_ok=True)
     plt.figure()
     plt.hist(hist_u.to_numpy(), bins=50)
-    plt.xlabel("|history(u)| (broj interakcija po korisniku u TRAIN)")
-    plt.ylabel("broj korisnika")
-    plt.title("Histogram aktivnosti korisnika (TRAIN)")
+    plt.xlabel("|history(u)| (number of interactions per user in TRAIN)")
+    plt.ylabel("Number of users")
+    plt.title("User activity histogram (TRAIN)")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "histogram_user_activity_train.png"), dpi=200)
     plt.close()
@@ -60,9 +60,9 @@ def plot_histogram_user_logx(hist_u: pd.Series, out_dir: str) -> None:
     plt.figure()
     plt.hist(hist_u.to_numpy(), bins=50)
     plt.xscale("log")
-    plt.xlabel("|history(u)| (log skala, TRAIN)")
-    plt.ylabel("broj korisnika")
-    plt.title("Histogram aktivnosti korisnika (TRAIN) — log x")
+    plt.xlabel("|history(u)| (log scale, TRAIN)")
+    plt.ylabel("Number of users")
+    plt.title("User activity histogram (TRAIN), log x axis")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "histogram_user_activity_train_logx.png"), dpi=200)
     plt.close()
@@ -71,23 +71,23 @@ def plot_itemknn_similarity_hist(sims: np.ndarray, out_dir: str, top_k: int) -> 
     os.makedirs(out_dir, exist_ok=True)
     plt.figure(figsize=(10, 6))
     plt.hist(sims, bins=60, edgecolor="black", alpha=0.85)
-    plt.xlabel("item-item cosine sličnost (iz topK lista)")
-    plt.ylabel("broj vrednosti")
-    plt.title(f"Item-kNN: distribucija item-item sličnosti (topK={top_k})")
+    plt.xlabel("item-item cosine similarity (from the top-K lists)")
+    plt.ylabel("Number of values")
+    plt.title(f"Item-kNN: distribution of item-item similarities (topK={top_k})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "item_knn_similarity_hist.png"), dpi=200)
     plt.close()
 
 def plot_filtering_effects(df_before: pd.DataFrame, df_after: pd.DataFrame, out_dir: str) -> None:
-
+    """Before/after histograms of ratings, ratings per user and ratings per item."""
     os.makedirs(out_dir, exist_ok=True)
 
     plt.figure(figsize=(10, 6))
     plt.hist(df_before["rating"], bins=10, edgecolor="black", alpha=0.6, label="Before")
     plt.hist(df_after["rating"], bins=10, edgecolor="black", alpha=0.6, label="After")
-    plt.xlabel("Ocena (rating)")
-    plt.ylabel("Broj ocena")
-    plt.title("Raspodela ocena: pre vs posle filtriranja")
+    plt.xlabel("Rating")
+    plt.ylabel("Number of ratings")
+    plt.title("Rating distribution: before vs after filtering")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "ratings_distribution_before_after.png"), dpi=200)
@@ -99,9 +99,9 @@ def plot_filtering_effects(df_before: pd.DataFrame, df_after: pd.DataFrame, out_
     plt.hist(u_before, bins=60, edgecolor="black", alpha=0.6, label="Before")
     plt.hist(u_after, bins=60, edgecolor="black", alpha=0.6, label="After")
     plt.yscale("log")
-    plt.xlabel("Broj ocena po korisniku")
-    plt.ylabel("Broj korisnika (log)")
-    plt.title("Distribucija #ocena po korisniku: pre vs posle")
+    plt.xlabel("Number of ratings per user")
+    plt.ylabel("Number of users (log)")
+    plt.title("Ratings per user: before vs after filtering")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "ratings_per_user_before_after.png"), dpi=200)
@@ -113,11 +113,11 @@ def plot_filtering_effects(df_before: pd.DataFrame, df_after: pd.DataFrame, out_
     plt.hist(i_before, bins=60, edgecolor="black", alpha=0.6, label="Before")
     plt.hist(i_after, bins=60, edgecolor="black", alpha=0.6, label="After")
     plt.yscale("log")
-    plt.xlabel("Broj ocena po artiklu")
-    plt.ylabel("Broj artikala (log)")
-    plt.title("Distribucija #ocena po artiklu: pre vs posle")
+    plt.xlabel("Number of ratings per item")
+    plt.ylabel("Number of items (log)")
+    plt.title("Ratings per item: before vs after filtering")
     plt.legend()
-    plt.tight_layout()  
+    plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "ratings_per_item_before_after.png"), dpi=200)
     plt.close()
 
@@ -128,10 +128,10 @@ def plot_user_knn_similarity_diagnostics(
     top_k: int = 50,
 ) -> None:
     """
-    Grafike koje opisuju user-user sličnosti:
-      1) Histogram svih topK sličnosti (flatten)
-      2) Distribucija mean(topK sim) po korisniku (stabilnost signala)
-      3) Distribucija max(sim) po korisniku (koliko ima "bliskih" korisnika)
+    Plots describing user-user similarities:
+      1) Histogram of all top-K similarities (flattened)
+      2) Distribution of mean(top-K sim) per user (signal stability)
+      3) Distribution of max(sim) per user (how close the nearest neighbor is)
     """
     os.makedirs(out_dir, exist_ok=True)
 
@@ -139,33 +139,34 @@ def plot_user_knn_similarity_diagnostics(
     sims = sims[np.isfinite(sims)]
     sims = sims.reshape(-1)
 
-    # 1) Histogram topK sim vrednosti
+    # Histogram of the top-K similarity values.
     plt.figure(figsize=(10, 6))
     plt.hist(neigh_u_sim.astype(float).reshape(-1), bins=60, edgecolor="black", alpha=0.85)
-    plt.xlabel("Cosine similarity (user-user) među topK ivicama")
-    plt.ylabel("Broj (ivica)")
-    plt.title(f"User-kNN: distribucija user-user sličnosti (topK={top_k})")
+    plt.xlabel("Cosine similarity (user-user) over top-K edges")
+    plt.ylabel("Number of edges")
+    plt.title(f"User-kNN: distribution of user-user similarities (topK={top_k})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "user_knn_topk_similarity_hist.png"), dpi=200)
     plt.close()
-    # 2) Mean similarity po korisniku
+
+    # Mean similarity per user.
     mean_s = np.mean(neigh_u_sim.astype(float), axis=1)
     plt.figure(figsize=(10, 6))
     plt.hist(mean_s, bins=60, edgecolor="black", alpha=0.85)
-    plt.xlabel("Mean(topK cosine similarity) po korisniku")
-    plt.ylabel("Broj korisnika")
-    plt.title(f"User-kNN: distribucija prosečne sličnosti po korisniku (topK={top_k})")
+    plt.xlabel("Mean(top-K cosine similarity) per user")
+    plt.ylabel("Number of users")
+    plt.title(f"User-kNN: distribution of mean similarity per user (topK={top_k})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "user_knn_mean_similarity_per_user.png"), dpi=200)
     plt.close()
 
-    # 3) Max similarity po korisniku
+    # Max similarity per user.
     max_s = np.max(neigh_u_sim.astype(float), axis=1)
     plt.figure(figsize=(10, 6))
     plt.hist(max_s, bins=60, edgecolor="black", alpha=0.85)
-    plt.xlabel("Max cosine similarity po korisniku (među topK)")
-    plt.ylabel("Broj korisnika")
-    plt.title(f"User-kNN: distribucija maksimalne sličnosti po korisniku (topK={top_k})")
+    plt.xlabel("Max cosine similarity per user (among top-K)")
+    plt.ylabel("Number of users")
+    plt.title(f"User-kNN: distribution of maximum similarity per user (topK={top_k})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "user_knn_max_similarity_per_user.png"), dpi=200)
     plt.close()
@@ -178,20 +179,19 @@ def plot_baseline_comparison_bars(
     only_models: list[str] | None = None,
 ) -> None:
     """
-    Snima 2 bar grafa:
-      1) RMSE po modelu (val i test)
-      2) MAE  po modelu (val i test)
-    u out_dir kao PNG.
+    Saves two bar charts as PNG in out_dir:
+      1) RMSE per model (val and test)
+      2) MAE per model (val and test)
     """
     os.makedirs(out_dir, exist_ok=True)
 
     dfp = rating_table.copy()
 
-    # Ako želiš samo baseline modele (npr. bez MF), prosledi only_models.
+    # Pass only_models to restrict the chart to a subset of models.
     if only_models is not None:
         dfp = dfp[dfp["model"].isin(only_models)].copy()
 
-    # Sort radi lepšeg prikaza (najčešće val_RMSE)
+    # Sort for readability (usually by val_RMSE).
     if sort_by in dfp.columns:
         dfp = dfp.sort_values(sort_by, ascending=True).reset_index(drop=True)
 
@@ -199,25 +199,25 @@ def plot_baseline_comparison_bars(
     x = np.arange(len(models))
     width = 0.38
 
-    # --- RMSE bar chart ---
+    # RMSE bar chart.
     plt.figure(figsize=(12, 6))
     plt.bar(x - width/2, dfp["val_RMSE"].to_numpy(float), width, label="VAL RMSE")
     plt.bar(x + width/2, dfp["test_RMSE"].to_numpy(float), width, label="TEST RMSE")
     plt.xticks(x, models, rotation=25, ha="right")
     plt.ylabel("RMSE")
-    plt.title("Poređenje modela: RMSE (VAL vs TEST)")
+    plt.title("Model comparison: RMSE (VAL vs TEST)")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "baseline_comparison_rmse_bar.png"), dpi=200)
     plt.close()
 
-    # --- MAE bar chart ---
+    # MAE bar chart.
     plt.figure(figsize=(12, 6))
     plt.bar(x - width/2, dfp["val_MAE"].to_numpy(float), width, label="VAL MAE")
     plt.bar(x + width/2, dfp["test_MAE"].to_numpy(float), width, label="TEST MAE")
     plt.xticks(x, models, rotation=25, ha="right")
     plt.ylabel("MAE")
-    plt.title("Poređenje modela: MAE (VAL vs TEST)")
+    plt.title("Model comparison: MAE (VAL vs TEST)")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "baseline_comparison_mae_bar.png"), dpi=200)
@@ -229,14 +229,14 @@ def plot_train_rating_histogram(
     out_dir: str,
     bins: int = 10,
 ) -> None:
-    """Histogram ocena u TRAIN-u (opravdava μ kao default)."""
+    """Histogram of TRAIN ratings (motivates the global mean mu as a default prediction)."""
     os.makedirs(out_dir, exist_ok=True)
 
     plt.figure(figsize=(10, 6))
     plt.hist(df_train["rating"].to_numpy(float), bins=bins, edgecolor="black", alpha=0.8)
-    plt.xlabel("Ocena (rating)")
-    plt.ylabel("Broj ocena")
-    plt.title("TRAIN: distribucija ocena (opravdanje za globalni prosek μ)")
+    plt.xlabel("Rating")
+    plt.ylabel("Number of ratings")
+    plt.title("TRAIN: rating distribution (motivation for the global mean mu)")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "train_rating_histogram.png"), dpi=200)
     plt.close()
@@ -251,15 +251,15 @@ def plot_train_interaction_distributions(
     log_y: bool = True,
 ) -> None:
     """
-    Distribucija broja interakcija po korisniku i po artiklu u TRAIN-u.
-    Opravdava zašto user/item mean postaju stabilniji tek posle filtriranja.
+    Distribution of the number of TRAIN interactions per user and per item.
+    Shows why user/item means only become stable after filtering.
     """
     os.makedirs(out_dir, exist_ok=True)
 
     user_counts = df_train.groupby("user_id")["rating"].size()
     item_counts = df_train.groupby("item_id")["rating"].size()
 
-    # --- users ---
+    # Users.
     plt.figure(figsize=(10, 6))
     plt.hist(user_counts.to_numpy(int), bins=bins, edgecolor="black", alpha=0.8)
     if log_y:
@@ -267,14 +267,14 @@ def plot_train_interaction_distributions(
     if min_user_interactions is not None:
         plt.axvline(min_user_interactions, linestyle="--", linewidth=2, label=f"min_user={min_user_interactions}")
         plt.legend()
-    plt.xlabel("Broj interakcija po korisniku (u TRAIN-u)")
-    plt.ylabel("Broj korisnika" + (" (log)" if log_y else ""))
-    plt.title("TRAIN: distribucija interakcija po korisniku")
+    plt.xlabel("Number of interactions per user (in TRAIN)")
+    plt.ylabel("Number of users" + (" (log)" if log_y else ""))
+    plt.title("TRAIN: distribution of interactions per user")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "train_interactions_per_user.png"), dpi=200)
     plt.close()
 
-    # --- items ---
+    # Items.
     plt.figure(figsize=(10, 6))
     plt.hist(item_counts.to_numpy(int), bins=bins, edgecolor="black", alpha=0.8)
     if log_y:
@@ -282,9 +282,9 @@ def plot_train_interaction_distributions(
     if min_item_interactions is not None:
         plt.axvline(min_item_interactions, linestyle="--", linewidth=2, label=f"min_item={min_item_interactions}")
         plt.legend()
-    plt.xlabel("Broj interakcija po artiklu (u TRAIN-u)")
-    plt.ylabel("Broj artikala" + (" (log)" if log_y else ""))
-    plt.title("TRAIN: distribucija interakcija po artiklu")
+    plt.xlabel("Number of interactions per item (in TRAIN)")
+    plt.ylabel("Number of items" + (" (log)" if log_y else ""))
+    plt.title("TRAIN: distribution of interactions per item")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "train_interactions_per_item.png"), dpi=200)
     plt.close()
@@ -297,7 +297,7 @@ def plot_topn_bar_test_metric(
     title: str,
     filename: str,
 ) -> None:
-    """Bar chart za jednu Top-N metriku po modelu (TEST_*)."""
+    """Bar chart of one Top-N metric per model (TEST_*)."""
     os.makedirs(out_dir, exist_ok=True)
 
     dfp = ranking_table[["model", metric_col]].dropna().copy()
@@ -322,10 +322,10 @@ def plot_positive_rank_histogram(
     label_b: str | None = None,
     max_rank: int = 100,
 ) -> None:
-    """Histogram ranga pozitivnog itema (1..100) za jedan ili dva modela."""
+    """Histogram of the positive item's rank (1..100) for one or two models."""
     os.makedirs(out_dir, exist_ok=True)
 
-    bins = np.arange(1, max_rank + 2)  # 1..101 za 100 binova
+    bins = np.arange(1, max_rank + 2)  # 1..101 gives 100 bins
     plt.figure(figsize=(12, 6))
 
     plt.hist(ranks_a, bins=bins, edgecolor="black", alpha=0.6, label=label_a)
@@ -333,9 +333,9 @@ def plot_positive_rank_histogram(
     if ranks_b is not None and label_b is not None:
         plt.hist(ranks_b, bins=bins, edgecolor="black", alpha=0.6, label=label_b)
 
-    plt.xlabel(f"Rank pozitivnog itema (1–{max_rank})")
-    plt.ylabel("Broj slučajeva")
-    plt.title(f"Distribucija ranga pozitivnog itema (test: 1 pozitivan + {max_rank} negativa)")
+    plt.xlabel(f"Rank of the positive item (1 to {max_rank})")
+    plt.ylabel("Number of cases")
+    plt.title(f"Distribution of the positive item's rank (test: 1 positive + {max_rank - 1} negatives)")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, filename), dpi=200)
@@ -347,14 +347,14 @@ def plot_negative_pool_histogram(
     out_dir: str,
     filename: str,
 ) -> None:
-    """Histogram |pool| po korisniku (po pozitivnom primeru)."""
+    """Histogram of the negative pool size per user (per positive example)."""
     os.makedirs(out_dir, exist_ok=True)
 
     plt.figure(figsize=(12, 6))
     plt.hist(pool_sizes, bins=60, edgecolor="black", alpha=0.85)
-    plt.xlabel("|pool| = broj dostupnih negativa (nakon filtera already-interacted)")
-    plt.ylabel("Broj slučajeva")
-    plt.title("Negativni pool size po korisniku (test)")
+    plt.xlabel("|pool| = number of available negatives (after removing already-interacted items)")
+    plt.ylabel("Number of cases")
+    plt.title("Negative pool size per user (test)")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, filename), dpi=200)
     plt.close()
@@ -366,7 +366,7 @@ def plot_tie_rate_bar(
     filename: str,
     title: str,
 ) -> None:
-    """Bar chart tie_rate po modelu."""
+    """Bar chart of the tie rate per model."""
     os.makedirs(out_dir, exist_ok=True)
 
     dfp = tie_table.sort_values("tie_rate", ascending=False).reset_index(drop=True)
@@ -388,7 +388,7 @@ def plot_hybrid_alpha_curve(
     filename: str = "hybrid_alpha_curve.png",
     title: str | None = None,
 ) -> None:
-    """Line plot HR/NDCG/MRR vs α. Ulaz: DF sa kolonama (alpha, VAL_HR@k, VAL_NDCG@k, VAL_MRR@k)."""
+    """Line plot of HR/NDCG/MRR vs alpha. Input: DataFrame with columns (alpha, VAL_HR@k, VAL_NDCG@k, VAL_MRR@k)."""
     if sweep_df is None or len(sweep_df) == 0:
         return
     os.makedirs(out_dir, exist_ok=True)
@@ -413,7 +413,7 @@ def plot_hybrid_grid_heatmap(
     k: int = 10,
     filename: str = "hybrid_grid_heatmap_ndcg.png",
 ) -> None:
-    """Heatmap: max VAL_NDCG@k preko (knn_topk × mf_factors), agregirano preko α/reg."""
+    """Heatmap of max VAL_NDCG@k over (knn_topk x mf_factors), aggregated over alpha and reg."""
     if df_grid is None or len(df_grid) == 0:
         return
     os.makedirs(out_dir, exist_ok=True)
@@ -448,9 +448,9 @@ def plot_hybrid_pred_distribution(
     hybrid_pred: np.ndarray,
     out_dir: str,
     filename: str = "hybrid_prediction_distribution_test.png",
-    title: str = "Distribucija predikcija po modelu (TEST)",
+    title: str = "Prediction distribution per model (TEST)",
 ) -> None:
-    """Histogram MF / Item-kNN / Hybrid predikcija na test setu (overlap)."""
+    """Overlaid histograms of MF / Item-kNN / Hybrid predictions on the test set."""
     os.makedirs(out_dir, exist_ok=True)
     _, ax = plt.subplots(figsize=(9, 5))
     bins = np.linspace(1.0, 5.0, 41)

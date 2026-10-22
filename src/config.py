@@ -1,32 +1,43 @@
-# Putanje i osnovna podesavanja
+# Paths and basic settings.
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-# Root projekta = jedan nivo iznad src/
+# Project root is one level above src/.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 DATA_PATTERNS = ("*.json", "*.jsonl", "*.json.gz", "*.jsonl.gz")
 
-REQUIRED_COLUMNS = ("reviewerID", "asin", "overall", 'unixReviewTime')
+# Experiment outputs: figures and tables are written here.
+DOCS_DIR = PROJECT_ROOT / "docs"
+FIGURES_DIR = DOCS_DIR / "figures"
+TABLES_DIR = DOCS_DIR / "tables"
 
+REQUIRED_COLUMNS = ("reviewerID", "asin", "overall", "unixReviewTime")
+
+# Default thresholds of the iterative filtering (single source for the agent and the experiments).
 MIN_USER_INTERACTIONS = 4
 MIN_ITEM_INTERACTIONS = 2
 
+
 class DatasetNotFoundError(FileNotFoundError):
-    """Podaci ne postoje na očekivanom mestu."""
+    """The data file does not exist at the expected location."""
+
 
 class TooManyFilesInDataFolderError(ValueError):
-    """Broj fajlova u data folderu iz kojih je moguće čitati je veći od 1!"""
+    """The data folder contains more than one readable file."""
+
 
 class FolderNotFoundError(FileNotFoundError):
-    """Data folder ne postoji!"""
+    """The data folder does not exist."""
+
 
 DATA_ERRORS = (DatasetNotFoundError, TooManyFilesInDataFolderError, FolderNotFoundError)
 
+
 def resolve_raw_reviews_path() -> Path:
-    """Resolves dataset path with env override and safe fallbacks."""
+    """Resolve the dataset path: RAW_REVIEWS_PATH env override, otherwise the single file in data/."""
     env_path = os.environ.get("RAW_REVIEWS_PATH")
     if env_path:
         return Path(env_path).expanduser().resolve()
@@ -36,14 +47,17 @@ def resolve_raw_reviews_path() -> Path:
         if len(found) == 1:
             return found[0]
         elif len(found) > 1:
-            raise TooManyFilesInDataFolderError("Broj fajlova iz kojih je moguće čitati je veći od 1!" \
-            " Postarajte se da postoji samo jedan fajl tipa .json, .jsonl, .json.gz ili .jsonl.gz" \
-            " gde jedna linija predstavlja jednu recenziju.")
+            raise TooManyFilesInDataFolderError(
+                "More than one readable file was found in data/. Make sure there is exactly one file "
+                "of type .json, .jsonl, .json.gz or .jsonl.gz where each line is one review."
+            )
         else:
-            raise DatasetNotFoundError("Trenutno ne postoji fajl iz kog se mogu obraditi podaci, potrebno je ubaciti "
-        "fajl u data/ takav da sadrži 4 kolone: reviewerID, asin, overall i "
-        "unixReviewTime, gde su tipovi podataka respektivno string, string, float i "
-        "ceo broj (Unix vreme u sekundama). Srećno sa daljim radom!\n")
+            raise DatasetNotFoundError(
+                "There is no file to process. Put a file into data/ that contains the 4 fields "
+                "reviewerID, asin, overall and unixReviewTime (string, string, float and integer "
+                "Unix time in seconds, respectively).\n"
+            )
     else:
-        raise FolderNotFoundError("Morate napraviti data/ folder u root-u projekta" \
-        " i u njega ubaciti fajl za obradu.")
+        raise FolderNotFoundError(
+            "Create a data/ folder in the project root and put the file to process into it."
+        )

@@ -1,4 +1,4 @@
 data/
 src/agent_artifacts
-src/eda_outputs
 src/__pycache__
+docs/
