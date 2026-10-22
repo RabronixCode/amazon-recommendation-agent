@@ -289,3 +289,23 @@ def user_knn_predict_df(
         fb = float(fallback_fn(u, i))
         preds[t] = predict_user_knn_one(u, i, user_hist, user_mean_arr, neigh_u_idx, neigh_u_sim, fb)
     return preds
+
+
+def build_user_mean(df_train: pd.DataFrame, n_users: int) -> np.ndarray:
+    """Prosek ocena po korisniku (korisnici bez train ocena dobijaju globalni prosek)."""
+    arr = np.full(n_users, float(df_train["rating"].mean()), dtype=np.float32)
+    um = df_train.groupby("user_index")["rating"].mean()
+    arr[um.index.to_numpy(int)] = um.to_numpy(np.float32)
+    return arr
+
+
+def build_user_history_ratings(df_train: pd.DataFrame) -> dict[int, dict[int, float]]:
+    """user_index -> {item_index: rating} iz train skupa."""
+    hist: dict[int, dict[int, float]] = {}
+    for u, i, r in zip(
+        df_train["user_index"].to_numpy(int),
+        df_train["item_index"].to_numpy(int),
+        df_train["rating"].to_numpy(float),
+    ):
+        hist.setdefault(int(u), {})[int(i)] = float(r)
+    return hist

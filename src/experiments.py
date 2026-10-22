@@ -236,9 +236,16 @@ def compute_tie_rate_table(
     return pd.DataFrame(rows)
 
 
+# run_one_setting (uklonjeno): sweep pragova filtriranja.
+# Za jedan par (min_user, min_item) iz opsega 2-5 radila je ceo pipeline sa
+# fiksnim MF hiperparametrima (factors=32, lr=0.02, reg=0.02, epochs=20),
+# bez kNN i Hybrid modela. Za svaki par je upisivala u eda_outputs/<par>/:
+# filtering_effect.csv, tri before/after PNG grafika, rating_metrics_table.csv
+# i ranking_metrics_table_fixed.csv; vraćala je rečnik sa sažetkom.
+# Za par 2/2 se zaustavljala na assert-u pri splitu. Rezultati su sačuvani u
+# eda_outputs i citiraju se u README (tabela osetljivosti na pragove).
 
-
-def run_one_setting(df_sorted, df_before, out_root, min_u, min_i, max_iters=20, seed_val=42, seed_test=43):
+""" def run_one_setting(df_sorted, df_before, out_root, min_u, min_i, max_iters=20, seed_val=42, seed_test=43):
     setting_tag = f"minU{min_u}_minI{min_i}"
     out_dir = os.path.join(out_root, setting_tag)
     os.makedirs(out_dir, exist_ok=True)
@@ -373,12 +380,8 @@ def run_one_setting(df_sorted, df_before, out_root, min_u, min_i, max_iters=20, 
         "mf_val_RMSE": float(rating_table[rating_table["model"] == "MF(Biased SGD, k=32)"]["val_RMSE"].iloc[0]),
         "mf_test_RMSE": float(rating_table[rating_table["model"] == "MF(Biased SGD, k=32)"]["test_RMSE"].iloc[0]),
         "out_dir": out_dir,
-    }
+    } """
 
-
-# =========================
-# 7.X) Hybrid grid search + dedicated EDA plots
-# =========================
 
 def run_hybrid_grid_search(
     df_train: pd.DataFrame,
@@ -609,7 +612,6 @@ def prepare_and_run_all(
     print(f"[Data] train/val/test={len(df_train)}/{len(df_val)}/{len(df_test)}")  # Pregled.
 
     mu = float(df_train["rating"].mean())  # Global mean iz train-a.
-    print(mu)  # Ispis global mean.
 
     user_mean_arr = np.full(n_users, mu, dtype=np.float32)  # Default user mean = mu.
     item_mean_arr = np.full(n_items, mu, dtype=np.float32)  # Default item mean = mu.
@@ -715,7 +717,6 @@ def prepare_and_run_all(
 
     def score_mf(u_idx: int, cand: np.ndarray) -> np.ndarray:  # MF scoring.
         return models.mf_score_candidates(mf["mu"], mf["bu"], mf["bi"], mf["P"], mf["Q"], u_idx, cand)  # MF.
-    print("TU SAM")
     
     TOPK_ITEMKNN = 50  # metodologija: topK=50
 
@@ -861,7 +862,7 @@ def prepare_and_run_all(
             u_a = int(row["user_index"])
             pos_a = int(row["item_index"])
             interacted_a = user_interactions.get(u_a, set())
-            neg_a = models.sample_negatives_for_user(all_items, interacted_a, pos_a, n_neg=99, rng=rng_alpha)
+            neg_a = evaluation.sample_negatives_for_user(all_items, interacted_a, pos_a, n_neg=99, rng=rng_alpha)
             cand_a = np.concatenate([[pos_a], neg_a]).astype(int)
             mf_s = np.asarray(score_mf(u_a, cand_a), dtype=float)
             knn_s = np.asarray(score_itemknn(u_a, cand_a), dtype=float)
@@ -1105,7 +1106,6 @@ def prepare_and_run_all(
     print(f"[Top-N] MF vs Bias (HR@10): {mf_hr:.6f} - {bias_hr:.6f} = {mf_minus_bias_hr:.6f}")
     print(f"[Saved] {hr_summary_path}")
 
-    print("DDD")
     
 
 

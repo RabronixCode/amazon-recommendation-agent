@@ -1,4 +1,4 @@
-"""find_demo_users.py
+"""demo.py
 
 Pronalazi reprezentativne korisnike za demonstraciju agenta, po jedan za svaki
 scenario koji agent razlikuje u kodu (agent_cli.recommend_top_n_for_user).
@@ -19,9 +19,9 @@ Kategorije:
   (B2 i B3 zahtevaju --with-raw, jer se sirovi podaci ponovo učitavaju.)
 
 Pokretanje (iz istog foldera kao agent_cli.py, posle `agent_cli.py --retrain`):
-  python find_demo_users.py
-  python find_demo_users.py --with-raw
-  python find_demo_users.py --sample 300 --topn 10 --with-raw
+  python demo.py
+  python demo.py --with-raw
+  python demo.py --sample 300 --topn 10 --with-raw
 """
 
 from __future__ import annotations
@@ -32,14 +32,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from agent_cli import (
-    ART_DIR,
-    build_leave_one_out_splits,
-    load_artifacts,
-    load_raw_reviews,
-    map_and_clean,
-    recommend_top_n_for_user,
-)
+from agent_cli import ART_DIR, load_artifacts, recommend_top_n_for_user
+from dataprep import build_splits_leave_one_out, load_raw_reviews, map_and_clean
 
 OUT_FILE = ART_DIR / "demo_users.txt"
 
@@ -82,7 +76,7 @@ def pick_by_knn_behavior(
     """A4-A6: pokreće stvarni Item-kNN Top-N za uzorak korisnika i meri ponašanje."""
     user_ids = payload["idx_maps"]["user_index_to_id"]
     df_cut = payload["df_cut"]
-    _, _, df_test = build_leave_one_out_splits(df_cut)
+    _, _, df_test = build_splits_leave_one_out(df_cut)
     test_item = dict(zip(df_test["user_index"].astype(int), df_test["item_index"].astype(int)))
 
     rng = np.random.default_rng(seed)

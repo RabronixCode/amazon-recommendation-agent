@@ -21,14 +21,9 @@ from __future__ import annotations
 import argparse
 import os
 
-from agent_cli import (
-    ART_FILE,
-    iterative_filter_min_interactions,
-    load_artifacts,
-    load_raw_reviews,
-    map_and_clean,
-    reindex_after_filter,
-)
+from agent_cli import ART_FILE, load_artifacts
+from config import MIN_ITEM_INTERACTIONS, MIN_USER_INTERACTIONS
+from dataprep import iterative_filter_min_interactions, load_raw_reviews, map_and_clean, reindex_after_filter
 
 
 def get_filtered_users(min_user: int, min_item: int, rebuild: bool) -> list[str]:
@@ -50,7 +45,7 @@ def get_filtered_users(min_user: int, min_item: int, rebuild: bool) -> list[str]
     df_raw = load_raw_reviews()
     df = map_and_clean(df_raw)
     df = df.sort_values("timestamp", ascending=True)
-    df_cut = iterative_filter_min_interactions(df, min_user=min_user, min_item=min_item)
+    df_cut = iterative_filter_min_interactions(df, min_user_interactions=min_user, min_item_interactions=min_item)
     _, idx_maps = reindex_after_filter(df_cut)
     return [str(u) for u in idx_maps["user_index_to_id"]]
 
@@ -59,8 +54,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Save reviewerID-eve koje agent stvarno koristi (1:1 sa treniranim modelom)."
     )
-    parser.add_argument("--min_user", type=int, default=4, help="Min interakcija po useru (samo kod --rebuild)")
-    parser.add_argument("--min_item", type=int, default=2, help="Min interakcija po itemu (samo kod --rebuild)")
+    parser.add_argument("--min_user", type=int, default=MIN_USER_INTERACTIONS, help="Min interakcija po useru (samo kod --rebuild)")
+    parser.add_argument("--min_item", type=int, default=MIN_ITEM_INTERACTIONS, help="Min interakcija po itemu (samo kod --rebuild)")
     parser.add_argument("--out", type=str, default="filtered_users.txt", help="Izlazni fajl sa reviewerID-evima")
     parser.add_argument("--check", type=str, default=None, help="Provera: da li je dati user_id u modelu")
     parser.add_argument("--head", type=int, default=0, help="Ako >0, ispiši i prvih N user-a u konzolu")

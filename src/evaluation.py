@@ -69,3 +69,11 @@ def evaluate_ranking(
         ndcgs.append(ndcg_at_k(rnk, k))  # NDCG.
         mrrs.append(mrr_at_k(rnk, k))  # MRR.
     return {f"HR@{k}": float(np.mean(hrs)), f"NDCG@{k}": float(np.mean(ndcgs)), f"MRR@{k}": float(np.mean(mrrs))}  # proseci.
+
+
+def build_user_interactions(df: pd.DataFrame) -> dict[int, set[int]]:
+    """user_index -> skup svih item_index sa kojima je korisnik imao interakciju."""
+    out: dict[int, set[int]] = {}
+    for u, i in zip(df["user_index"].to_numpy(int), df["item_index"].to_numpy(int)):
+        out.setdefault(int(u), set()).add(int(i))
+    return out

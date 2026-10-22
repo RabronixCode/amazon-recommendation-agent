@@ -5,7 +5,16 @@ import gzip
 import ast
 import json
 
-from config import resolve_raw_reviews_path  # Putanja do Amazon JSONL.GZ.
+from config import REQUIRED_COLUMNS, resolve_raw_reviews_path  # Putanja i obavezne kolone.
+
+# Amazon nazivi kolona -> interna imena. Jedino mesto gde se ovo mapiranje definise.
+COLUMN_MAPPING = {
+    "reviewerID": "user_id",
+    "asin": "item_id",
+    "overall": "rating",
+    "unixReviewTime": "timestamp",
+}
+
 
 def load_raw_reviews() -> pd.DataFrame:  # Učitava raw dataset (robustno).
     # Tolerantni line-by-line parser: pandas + ujson padaju na neispravnim linijama
@@ -82,3 +91,30 @@ def compute_dataset_profile(df: pd.DataFrame, label: str) -> dict[str, object]: 
 
 def make_filtering_report_table(df_before: pd.DataFrame, df_after: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame([compute_dataset_profile(df_before, "before_filter"), compute_dataset_profile(df_after, "after_filter")])  # Tabela.
+
+
+def map_and_clean(df_raw: pd.DataFrame) -> pd.DataFrame:
+    """Uzima obavezne kolone, preimenuje ih, pretvara tipove, izbacuje null i duplikate."""
+    missing = [c for c in REQUIRED_COLUMNS if c not in df_raw.columns]
+    if missing:
+        raise ValueError(f"Nedostaju kolone {missing}. Dostupno: {list(df_raw.columns)}")
+
+    df = df_raw[list(COLUMN_MAPPING)].rename(columns=COLUMN_MAPPING)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+    df["rating"] = df["rating"].astype(float)
+    df = df.dropna(subset=["user_id", "item_id", "rating", "timestamp"])
+    return df.drop_duplicates()
+
+
+def reindex_after_filter(df_cut: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, list]]:
+    """Dodaje user_index / item_index (0..n-1) i vraca mape index -> originalni id."""
+    df_cut = df_cut.copy()
+    user_cats = df_cut["user_id"].astype("category")
+    item_cats = df_cut["item_id"].astype("category")
+    df_cut["user_index"] = user_cats.cat.codes.astype(int)
+    df_cut["item_index"] = item_cats.cat.codes.astype(int)
+    idx_maps = {
+        "user_index_to_id": list(user_cats.cat.categories),
+        "item_index_to_id": list(item_cats.cat.categories),
+    }
+    return df_cut, idx_maps

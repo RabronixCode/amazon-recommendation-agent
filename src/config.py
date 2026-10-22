@@ -11,6 +11,9 @@ DATA_PATTERNS = ("*.json", "*.jsonl", "*.json.gz", "*.jsonl.gz")
 
 REQUIRED_COLUMNS = ("reviewerID", "asin", "overall", 'unixReviewTime')
 
+MIN_USER_INTERACTIONS = 4
+MIN_ITEM_INTERACTIONS = 2
+
 class DatasetNotFoundError(FileNotFoundError):
     """Podaci ne postoje na očekivanom mestu."""
 
